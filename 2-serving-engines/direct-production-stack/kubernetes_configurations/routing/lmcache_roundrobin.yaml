@@ -212,7 +212,7 @@ spec:
       initContainers:
         - name: my-container
           image: busybox
-          command: 
+          command:
             - sh
           volumeMounts:
             - name: vllm-storage
@@ -242,7 +242,7 @@ spec:
           - "--disable-log-requests"
           - "--trust-remote-code"
           - "--kv-transfer-config"
-          - '{"kv_connector":"LMCacheConnector","kv_role":"kv_both"}'
+          - '{"kv_connector":"LMCacheConnectorV1","kv_role":"kv_both"}'
           securityContext:
             runAsNonRoot: false
           imagePullPolicy: Always
@@ -274,7 +274,7 @@ spec:
             - name: "container-port"
               containerPort: 8000
             - name: zmq-port
-              containerPort: 55555          
+              containerPort: 55555
           startupProbe:
             failureThreshold: 60
             httpGet:
