@@ -8,7 +8,7 @@ Infrastructure:
 Serving:
   Baseline: Direct-ProductionStack
   Direct-ProductionStack:
-    kubernetesConfigSelection: layerwise/w.yaml
+    kubernetesConfigSelection: layerwise/wo.yaml
     hf_token: <YOUR_HF_TOKEN> # do NOT modify if you are using LMCacheGKE (keep as <YOUR_HF_TOKEN>). This is only needed for LocalMinikube
     modelURL: meta-llama/Llama-3.1-8B-Instruct
 
@@ -61,7 +61,7 @@ Workload:
       SYSTEM_PROMPT: 0
       CHAT_HISTORY: 8000
       ANSWER_LEN: 20
-      QPS: [5 10 15]
+      QPS: [5, 10, 15]
       USE_SHAREGPT: false
 
   # Mooncake:
