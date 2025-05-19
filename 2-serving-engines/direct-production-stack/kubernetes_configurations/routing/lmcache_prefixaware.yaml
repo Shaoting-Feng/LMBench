@@ -154,7 +154,7 @@ spec:
           - "--k8s-label-selector"
           - environment=test,release=test
           - "--routing-logic"
-          - "kvaware"
+          - "prefixaware"
           - "--engine-stats-interval"
           - "15"
           - "--request-stats-window"
@@ -219,9 +219,9 @@ spec:
               mountPath: /data
       containers:
         - name: "vllm"
-          image: "lmcache/vllm-openai:latest"
+          image: "lmcache/vllm-openai:2025-05-17-v1"
           command:
-          - "vllm"
+          - "/opt/venv/bin/vllm"
           - "serve"
           - "mistralai/Mistral-7B-Instruct-v0.2"
           - "--host"
@@ -270,14 +270,6 @@ spec:
             value: "True"
           - name: LMCACHE_MAX_LOCAL_CPU_SIZE
             value: "30"
-          - name: LMCACHE_ENABLE_CONTROLLER
-            value: "True"
-          - name: LMCACHE_INSTANCE_ID
-            value: "default1"
-          - name: LMCACHE_CONTROLLER_URL
-            value: "vllm-mistral-service:9001"
-          - name: LMCACHE_WORKER_PORT
-            value: "vllm-service:8002"
           ports:
             - name: "container-port"
               containerPort: 8000
