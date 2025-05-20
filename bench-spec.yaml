@@ -7,7 +7,7 @@ Infrastructure:
 Serving:
   Baseline: Direct-ProductionStack
   Direct-ProductionStack:
-    kubernetesConfigSelection: routing/prefixaware.yaml
+    kubernetesConfigSelection: routing/lmcache_kv_aware.yaml
       # this will start in the `2-serving-engines/direct-production-stack/kubernetes_configurations/` directory
       # generally this will be some modification after directly helm rendering the producttion stack helm chart
     hf_token: <YOUR_HF_TOKEN>
@@ -63,7 +63,7 @@ Workload:
       SYSTEM_PROMPT: 0
       CHAT_HISTORY: 20000
       ANSWER_LEN: 20
-      QPS: [1.4, 1.5, 1.7]
+      QPS: [1.4]
       USE_SHAREGPT: false
 
   # Mooncake:
