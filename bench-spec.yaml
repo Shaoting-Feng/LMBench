@@ -1,16 +1,19 @@
 Infrastructure:
   # Location: NoBench # when pushing changes that should not run any workflows
-  # Location: LocalMinikube
-  Location: LMCacheGKE
-  numClusterGPUs: 4
+  Location: LocalMinikube
+  numClusterGPUs: 1
   A100_VRAM: 40
 
 Serving:
   Baseline: Direct-ProductionStack
   Direct-ProductionStack:
     kubernetesConfigSelection: layerwise/w.yaml
+      # this will start in the `2-serving-engines/direct-production-stack/kubernetes_configurations/` directory
+      # generally this will be some modification after directly helm rendering the producttion stack helm chart
     hf_token: <YOUR_HF_TOKEN>
-    modelURL: meta-llama/Meta-Llama-3-8B-Instruct
+    modelURL: meta-llama/Llama-3.1-8B-Instruct
+      # even though the model is hardcoded into the kubernetes config, we still need to specify it here
+      # because the workload stage requires knowledge of the modelURL to tokenize and send requests
 
   # Baseline: Helm-ProductionStack
   # Helm-ProductionStack:
@@ -26,12 +29,11 @@ Serving:
   #   maxModelLen: 16384
 
 Workload:
-
   # ShareGPT:
-  #   - LIMIT: 1000
-  #     MIN_ROUNDS: 10
+  #   - LIMIT: 5
+  #     MIN_ROUNDS: 2
   #     START_ROUND: 0
-  #     QPS: [1.34, 2]
+  #     QPS: [0.5]
 
   LMCacheSynthetic:
   #   # long input long output:
@@ -45,24 +47,24 @@ Workload:
   #     USE_SHAREGPT: true
 
   #   # long input short output:
-    - NUM_USERS_WARMUP: 20
-      NUM_USERS: 15
-      NUM_ROUNDS: 20
-      SYSTEM_PROMPT: 1000
-      CHAT_HISTORY: 20000
-      ANSWER_LEN: 100
-      QPS: [0.4] # 0.1 * 4 (for 4 serving engines)
-      USE_SHAREGPT: true
+  #   - NUM_USERS_WARMUP: 20
+  #     NUM_USERS: 15
+  #     NUM_ROUNDS: 20
+  #     SYSTEM_PROMPT: 1000
+  #     CHAT_HISTORY: 20000
+  #     ANSWER_LEN: 100
+  #     QPS: [0.4] # 0.1 * 4 (for 4 serving engines)
+  #     USE_SHAREGPT: true
 
     # short input short output:
-    # - NUM_USERS_WARMUP: 0
-    #   NUM_USERS: 10
-    #   NUM_ROUNDS: 2
-    #   SYSTEM_PROMPT: 0
-    #   CHAT_HISTORY: 8000
-    #   ANSWER_LEN: 20
-    #   QPS: [1.5, 1.6, 1.7]
-    #   USE_SHAREGPT: false
+    - NUM_USERS_WARMUP: 0
+      NUM_USERS: 10
+      NUM_ROUNDS: 2
+      SYSTEM_PROMPT: 0
+      CHAT_HISTORY: 20000
+      ANSWER_LEN: 20
+      QPS: [1.4, 1.5, 1.7]
+      USE_SHAREGPT: false
 
   # Mooncake:
   # - NUM_ROUNDS: 10

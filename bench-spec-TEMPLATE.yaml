@@ -1,3 +1,4 @@
+# 1. Infrastructure
 Infrastructure:
   # Option 0: None (when pushing changes that should not run any workflows)
   Location: NoBench
@@ -18,6 +19,7 @@ Infrastructure:
   # so we recommend using 8x 40GB A100s with TP 8 for llama 3.1 70B
   # or 2x 80GB A100s with TP 2 for llama 3.1 70B
 
+# 2. Serving Baseline
 Serving:
   # Option 1: Helm-ProductionStack (Uses the latest helm repository from production-stack)
   # PLEASE make sure that replicaCount x numGPUs <= numClusterGPUs
@@ -70,6 +72,21 @@ Serving:
   Dynamo:
     # Coming soon...
 
+  # Option 5: KubeRay (Broken ATM)
+  Baseline: KubeRay
+  KubeRay:
+    modelURL: meta-llama/Llama-3.1-8B-Instruct # the model to serve
+    hf_token: <YOUR_HF_TOKEN>
+    headGPUs: 1 # GPUs for the head node
+    workerGPUs: 1 # GPUs per worker
+    numWorkers: 1 # Number of worker nodes
+    headCPUs: 2 # CPUs for the head node
+    workerCPUs: 2 # CPUs per worker
+    headMemory: "4G" # Memory for the head node
+    workerMemory: "4G" # Memory per worker
+    modelCacheSize: "20Gi" # Size of the model cache volume
+
+# 3. Workload
 Workload:
   # Multiple workloads can be specified and they will all be run.
   ShareGPT:

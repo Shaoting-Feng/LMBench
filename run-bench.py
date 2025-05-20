@@ -46,6 +46,15 @@ def read_bench_spec() -> Dict[str, Any]:
         elif baseline == 'Dynamo':
             print("validating hf_token for Dynamo baseline")
             pass
+        elif baseline == 'KubeRay':
+            print("validating hf_token for KubeRay baseline")
+            kuberay_config = config['Serving'].get('KubeRay', {})
+            model_url = kuberay_config.get('modelURL')
+            hf_token = kuberay_config.get('hf_token')
+            if not model_url:
+                raise ValueError("modelURL must be specified in bench-spec.yaml for KubeRay baseline")
+            if hf_token == '<YOUR_HF_TOKEN>':
+                raise ValueError("hf_token must be specified in bench-spec.yaml for KubeRay baseline")
         else:
             raise ValueError(f"Unsupported baseline: {baseline}")
 
@@ -167,6 +176,20 @@ def setup_baseline(config: Dict[str, Any]) -> None:
         #TODO
         dynamo_config = config['Serving'].get('Dynamo', {})
         pass
+    elif baseline == 'KubeRay':
+        KEY = 'kuberay'
+        kuberay_config = config['Serving'].get('KubeRay', {})
+        model_url = kuberay_config.get('modelURL')
+        hf_token = kuberay_config.get('hf_token')
+        if not model_url:
+            raise ValueError("modelURL must be specified in bench-spec.yaml for KubeRay baseline")
+        if not hf_token:
+            raise ValueError("hf_token must be specified in bench-spec.yaml for KubeRay baseline")
+        MODEL_URL = model_url
+        HF_TOKEN = hf_token
+
+        # Set up KubeRay
+        kuberay_installation(kuberay_config)
     else:
         raise ValueError(f"Unsupported baseline: {baseline}")
 
@@ -397,6 +420,36 @@ def kubernetes_application(direct_production_stack_config: Dict[str, Any], globa
 
     # The patching of deployments to the appropriate node pools is now handled directly
     # in the choose-and-deploy.sh script before waiting for pods to be ready
+
+def kuberay_installation(kuberay_config: Dict[str, Any]) -> None:
+    """
+    Deploy KubeRay using the configured parameters
+    """
+    # Generate the KubeRay configuration
+    generate_script = Path(__file__).parent / '2-serving-engines' / 'kuberay' / 'generate-kuberay-config.sh'
+
+    if not generate_script.exists():
+        raise FileNotFoundError(f"KubeRay config generation script not found: {generate_script}")
+
+    # Make the script executable
+    os.chmod(generate_script, 0o755)
+
+    # Generate the KubeRay configuration
+    print("Generating KubeRay configuration...")
+    subprocess.run([str(generate_script)], check=True)
+
+    # Run the KubeRay installation script
+    install_script = Path(__file__).parent / '2-serving-engines' / 'kuberay' / 'run-kuberay.sh'
+
+    if not install_script.exists():
+        raise FileNotFoundError(f"KubeRay installation script not found: {install_script}")
+
+    # Make the script executable
+    os.chmod(install_script, 0o755)
+
+    # Install KubeRay
+    print("Running KubeRay installation...")
+    subprocess.run([str(install_script)], check=True)
 
 # 3. Run the specified workload
 def run_workload(config: Dict[str, Any]) -> None:
