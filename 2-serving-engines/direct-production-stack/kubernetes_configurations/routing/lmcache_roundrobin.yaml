@@ -121,7 +121,7 @@ metadata:
     environment: router
     release: router
 spec:
-  replicas: 4
+  replicas: 1
   strategy:
     rollingUpdate:
       maxSurge: 100%
@@ -162,10 +162,10 @@ spec:
         resources:
           requests:
             cpu: "2"
-            memory: "16Gi"
+            memory: "8Gi"
           limits:
             cpu: "2"
-            memory: "16Gi"
+            memory: "8Gi"
         ports:
           - name: "router-cport"
             containerPort: 8000
