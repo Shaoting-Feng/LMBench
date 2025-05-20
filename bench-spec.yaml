@@ -8,7 +8,7 @@ Infrastructure:
 Serving:
   Baseline: Direct-ProductionStack
   Direct-ProductionStack:
-    kubernetesConfigSelection: routing/lmcache_kv_aware.yaml
+    kubernetesConfigSelection: routing/lmcache_kvaware.yaml
       # this will start in the `2-serving-engines/direct-production-stack/kubernetes_configurations/` directory
       # generally this will be some modification after directly helm rendering the producttion stack helm chart
     hf_token: <YOUR_HF_TOKEN>
