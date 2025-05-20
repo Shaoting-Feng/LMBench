@@ -7,11 +7,11 @@ Infrastructure:
 Serving:
   Baseline: Direct-ProductionStack
   Direct-ProductionStack:
-    kubernetesConfigSelection: layerwise/wo.yaml
+    kubernetesConfigSelection: routing/roundrobin.yaml
       # this will start in the `2-serving-engines/direct-production-stack/kubernetes_configurations/` directory
       # generally this will be some modification after directly helm rendering the producttion stack helm chart
     hf_token: <YOUR_HF_TOKEN>
-    modelURL: meta-llama/Llama-3.1-8B-Instruct
+    modelURL: mistralai/Mistral-7B-Instruct-v0.2
       # even though the model is hardcoded into the kubernetes config, we still need to specify it here
       # because the workload stage requires knowledge of the modelURL to tokenize and send requests
 
