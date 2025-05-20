@@ -8,9 +8,9 @@ Infrastructure:
 Serving:
   Baseline: Direct-ProductionStack
   Direct-ProductionStack:
-    kubernetesConfigSelection: routing/lmcache_kvaware.yaml
+    kubernetesConfigSelection: layerwise/w.yaml
     hf_token: <YOUR_HF_TOKEN>
-    modelURL: mistralai/Mistral-7B-Instruct-v0.2
+    modelURL: meta-llama/Meta-Llama-3-8B-Instruct
 
   # Baseline: Helm-ProductionStack
   # Helm-ProductionStack:
