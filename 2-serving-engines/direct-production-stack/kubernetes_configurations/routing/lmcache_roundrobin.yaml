@@ -37,9 +37,7 @@ spec:
   resources:
     requests:
       storage: 50Gi  # Default to 20Gi if not set
-  selector:
-    matchLabels:
-        model: mistral
+  storageClassName: standard-rwo
 ---
 # Source: vllm-stack/templates/role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
