@@ -1,0 +1,370 @@
+---
+# Source: vllm-stack/templates/poddisruptionbudget.yaml
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: "vllm-pdb"
+  namespace: default
+spec:
+  maxUnavailable: 1
+---
+# Source: vllm-stack/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "vllm-router-service-account"
+  namespace: default
+---
+# Source: vllm-stack/templates/secrets.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "vllm-secrets"
+  namespace: default
+type: Opaque
+data:
+  hf_token_llama3: "aGZfY0t1Y01ieXJKSVZObUtqUmJJRGVJdmFMYXVzVVp5YkhHdA=="
+---
+# Source: vllm-stack/templates/pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "vllm-llama3-storage-claim"
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 180Gi  # Default to 20Gi if not set
+---
+# Source: vllm-stack/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "vllm-pod-reader"
+  namespace: default
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+---
+# Source: vllm-stack/templates/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vllm-deployment-access-binding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: vllm-router-service-account
+    namespace: default
+roleRef:
+  kind: Role
+  name: vllm-pod-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: vllm-stack/templates/service-router.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: "vllm-router-service"
+  namespace: default
+  labels:
+    environment: router
+    release: router
+spec:
+  type: ClusterIP
+  ports:
+    - name: "router-sport"
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    environment: router
+    release: router
+---
+# Source: vllm-stack/templates/service-vllm.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: "vllm-llama3-engine-service"
+  namespace: default
+  labels:
+    environment: test
+    release: test
+spec:
+  type: ClusterIP
+  ports:
+    - name: "service-port"
+      port: 80
+      targetPort: "container-port"
+      protocol: TCP
+  selector:
+    model: "llama3"
+    helm-release-name: "vllm"
+---
+# Source: vllm-stack/templates/deployment-router.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "vllm-deployment-router"
+  namespace: default
+  labels:
+    environment: router
+    release: router
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      environment: router
+      release: router
+  template:
+    metadata:
+      labels:
+        environment: router
+        release: router
+    spec:
+      serviceAccountName: vllm-router-service-account
+      containers:
+      - name: router-container
+        image: "lmcache/lmstack-router:benchmark"
+        imagePullPolicy: "Always"
+        env:
+        args:
+          - "--host"
+          - "0.0.0.0"
+          - "--port"
+          - "8000"
+          - "--service-discovery"
+          - "k8s"
+          - "--k8s-namespace"
+          - "default"
+          - "--k8s-label-selector"
+          - environment=test,release=test
+          - "--routing-logic"
+          - "session"
+          - "--session-key"
+          - "x-user-id"
+          - "--engine-stats-interval"
+          - "15"
+          - "--request-stats-window"
+          - "60"
+        resources:
+          requests:
+            cpu: "2"
+            memory: "8G"
+          limits:
+            cpu: "2"
+            memory: "8G"
+        ports:
+          - name: "router-cport"
+            containerPort: 8000
+        livenessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8000
+---
+# Source: vllm-stack/templates/deployment-vllm-multi.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "vllm-llama3-deployment-vllm"
+  namespace: default
+  labels:
+    model: llama3
+    helm-release-name: vllm
+    environment: test
+    release: test
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 100%
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      model: llama3
+      helm-release-name: vllm
+      environment: test
+      release: test
+  progressDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels:
+        model: llama3
+        helm-release-name: vllm
+        environment: test
+        release: test
+    spec:
+      initContainers:
+        - name: setup-script
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /data /scripts
+              cat > /scripts/entrypoint.sh << 'EOF'
+              #!/bin/bash
+
+              set -e
+
+              # Configure Python paths and environment
+              export PYTHONPATH=/opt/lmcache-connector:/opt/lmcache:/opt/vllm:$PYTHONPATH
+              export VLLM_PLUGINS=lmcache_connector_plugin
+
+              # Create a stub connector
+              mkdir -p /opt/lmcache-connector/lmcache_connector
+              cat > /opt/lmcache-connector/lmcache_connector/__init__.py << 'INNER_EOF'
+              # Empty init file
+              INNER_EOF
+
+              cat > /opt/lmcache-connector/lmcache_connector/kv_connector.py << 'INNER_EOF'
+              """
+              A stub KV connector implementation.
+              """
+
+              class LMCacheConnectorV1:
+                  def __init__(self, config):
+                      print("Initializing stub LMCacheConnectorV1")
+                      self.config = config
+
+                  def register(self):
+                      print("Registering stub LMCacheConnectorV1")
+                      return True
+
+                  def push_kv(self, key_caches, value_caches, seq_ids, seq_lens):
+                      print(f"Push KV cache for {len(seq_ids)} sequences")
+                      return True
+
+                  def pull_kv(self, seq_ids):
+                      print(f"Pull KV cache for {len(seq_ids)} sequences")
+                      return None, None
+              INNER_EOF
+
+              # Add plugin file to register connector
+              mkdir -p /opt/lmcache-connector/vllm_plugins
+              cat > /opt/lmcache-connector/vllm_plugins/__init__.py << 'INNER_EOF'
+              # Empty init file
+              INNER_EOF
+
+              cat > /opt/lmcache-connector/vllm_plugins/lmcache_connector_plugin.py << 'INNER_EOF'
+              """
+              Plugin to register LMCache connector.
+              """
+              def register_kv_connectors():
+                  from lmcache_connector.kv_connector import LMCacheConnectorV1
+                  from vllm.distributed.kv_transfer.kv_connector.factory import KVConnectorFactory
+
+                  # Register our connector with vLLM
+                  KVConnectorFactory.register_connector("LMCacheConnectorV1", LMCacheConnectorV1)
+                  print("LMCacheConnectorV1 registered successfully!")
+                  return True
+              INNER_EOF
+
+              # Run vLLM
+              /usr/bin/python -m vllm.entrypoints.openai.api_server \
+                --model meta-llama/Llama-3.1-8B-Instruct \
+                --host 0.0.0.0 \
+                --port 8000 \
+                --max-model-len 20000 \
+                --dtype bfloat16 \
+                --tensor-parallel-size 1 \
+                --gpu_memory_utilization 0.95 \
+                --max_loras 4 \
+                --disable-log-requests
+              EOF
+              chmod +x /scripts/entrypoint.sh
+          volumeMounts:
+            - name: vllm-storage
+              mountPath: /data
+            - name: script-volume
+              mountPath: /scripts
+      containers:
+        - name: "vllm"
+          image: "lmcache/vllm-openai:latest"
+          command: ["/scripts/entrypoint.sh"]
+          securityContext:
+            runAsNonRoot: false
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: HF_HOME
+            value: /data
+          - name: LMCACHE_LOG_LEVEL
+            value: "DEBUG"
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: vllm-secrets
+                key: hf_token_llama3
+          - name: LMCACHE_USE_EXPERIMENTAL
+            value: "True"
+          - name: VLLM_RPC_TIMEOUT
+            value: "1000000"
+          - name: LMCACHE_LOCAL_CPU
+            value: "True"
+          - name: LMCACHE_MAX_LOCAL_CPU_SIZE
+            value: "60"
+          - name: LMCACHE_CHUNK_SIZE
+            value: "256"
+          - name: PYTHONPATH
+            value: "/opt/lmcache-connector:/opt/lmcache:/opt/vllm"
+          - name: LMCACHE_CONNECTOR_MODULE_PATH
+            value: "/opt/lmcache-connector"
+          - name: VLLM_PLUGINS
+            value: "lmcache_connector_plugin"
+          - name: TOKENIZERS_PARALLELISM
+            value: "false"
+          ports:
+            - name: "container-port"
+              containerPort: 8000
+          startupProbe:
+            failureThreshold: 60
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "50Gi"
+              cpu: "10"
+              nvidia.com/gpu: "1"
+            limits:
+              nvidia.com/gpu: "1"
+          volumeMounts:
+          - name: vllm-storage
+            mountPath: /data
+          - name: shm
+            mountPath: /dev/shm
+          - name: script-volume
+            mountPath: /scripts
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      volumes:
+        - name: vllm-storage
+          persistentVolumeClaim:
+            claimName: "vllm-llama3-storage-claim"
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 20Gi
+        - name: script-volume
+          emptyDir: {}

@@ -1,0 +1,123 @@
+name: Test Self-Hosted Runner
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  test-runner:
+    runs-on: self-hosted
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Check bench-spec.yaml configuration
+        shell: bash
+        run: |
+          if [ ! -f "bench-spec.yaml" ]; then
+            echo "::error:: bench-spec.yaml not found in project root."
+            exit 1
+          fi
+
+          if ! grep -q "Location: LMCacheGKE" bench-spec.yaml; then
+            echo "::warning:: Location: LMCacheGKE not found in bench-spec.yaml. Skipping benchmark run."
+            exit 0
+          fi
+
+          echo "✅ bench-spec.yaml correctly configured for LMCacheGKE."
+
+      - name: Show runner info
+        run: |
+          echo "✅ Running on self-hosted runner!"
+          uname -a
+          whoami
+          echo "Current directory: $(pwd)"
+
+      - name: Check gcloud CLI
+        run: |
+          echo "✅ Checking gcloud installation..."
+          gcloud --version
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/816706432769/locations/global/workloadIdentityPools/lmbench-pool/providers/github-provider'
+          service_account: 'lmbench-runner@theta-dialect-454217-m5.iam.gserviceaccount.com'
+
+      - name: Show active gcloud account
+        run: |
+          echo "✅ Checking gcloud auth list..."
+          gcloud auth list
+
+      - name: Show active gcloud project
+        run: |
+          echo "✅ Checking gcloud active project..."
+          gcloud config get-value project
+
+      - name: List Compute Engine instances
+        run: |
+          echo "✅ Listing compute instances..."
+          gcloud compute instances list
+
+      - name: Inject HF_TOKEN into bench-spec.yaml
+        shell: bash
+        env:
+          ENV_HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -f "bench-spec.yaml" ]; then
+            echo "bench-spec.yaml found, injecting HF_TOKEN..."
+            if [ -n "$ENV_HF_TOKEN" ]; then
+              sed -i 's/^\(\s*-*\s*hf_token:\s*\).*/\1'"$ENV_HF_TOKEN"'/' bench-spec.yaml
+              echo "Injection complete."
+            else
+              echo "::warning:: HF_TOKEN secret is not set. Skipping injection."
+            fi
+          else
+            echo "::warning:: bench-spec.yaml not found in project root."
+          fi
+
+      - name: Set up Conda environment and run benchmark script
+        shell: bash -l {0}
+        run: |
+          source ~/miniconda3/etc/profile.d/conda.sh
+          conda activate py312
+          python --version
+          echo "✅ Running benchmark script..."
+          python run-bench.py
+
+      - name: Upload .results artifacts to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: 4-latest-results/*.results
+
+  cleanup:
+    runs-on: self-hosted
+    permissions:
+      id-token: write
+      contents: read
+    if: always()
+    needs: [test-runner]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/816706432769/locations/global/workloadIdentityPools/lmbench-pool/providers/github-provider'
+          service_account: 'lmbench-runner@theta-dialect-454217-m5.iam.gserviceaccount.com'
+
+      - name: Run cleanup script
+        shell: bash
+        run: |
+          echo "Running cleanup script to ensure GKE resources are removed..."
+          chmod +x ./4-latest-results/post-processing/cleanup.sh
+          ./4-latest-results/post-processing/cleanup.sh
+          echo "✅ Cleanup completed"
