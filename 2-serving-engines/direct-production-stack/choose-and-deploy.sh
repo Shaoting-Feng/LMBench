@@ -195,26 +195,26 @@ while true; do
   TOTAL=$(echo "$PODS" | tail -n +2 | wc -l)
   READY=$(echo "$PODS" | grep '1/1' | wc -l)
 
-  # # Check for pods in error state
-  # if echo "$PODS" | grep -E 'CrashLoopBackOff|Error|ImagePullBackOff' > /dev/null; then
-  #   echo "❌ Detected pod in CrashLoopBackOff / Error / ImagePullBackOff state!"
-  #   kubectl get pods
-  #   kubectl describe pods | grep -A 10 "Events:"
-  #   kubectl delete all --all
-  #   exit 1
-  # fi
+  # Check for pods in error state
+  if echo "$PODS" | grep -E 'CrashLoopBackOff|Error|ImagePullBackOff' > /dev/null; then
+    echo "❌ Detected pod in CrashLoopBackOff / Error / ImagePullBackOff state!"
+    kubectl get pods
+    kubectl describe pods | grep -A 10 "Events:"
+    kubectl delete all --all
+    exit 1
+  fi
 
-  # # Check for CUDA OOM
-  # kubectl get pods -o name | grep -E 'vllm|lmcache' | while read pod; do
-  #   echo "Checking logs for $pod for CUDA OOM"
-  #   if kubectl logs $pod --tail=50 2>/dev/null | grep "CUDA out of memory" >/dev/null; then
-  #     echo "❗ CUDA OOM detected in $pod"
-  #     kubectl get pods
-  #     kubectl describe pod $pod
-  #     kubectl delete all --all
-  #     exit 1
-  #   fi
-  # done
+  # Check for CUDA OOM
+  kubectl get pods -o name | grep -E 'vllm|lmcache' | while read pod; do
+    echo "Checking logs for $pod for CUDA OOM"
+    if kubectl logs $pod --tail=50 2>/dev/null | grep "CUDA out of memory" >/dev/null; then
+      echo "❗ CUDA OOM detected in $pod"
+      kubectl get pods
+      kubectl describe pod $pod
+      kubectl delete all --all
+      exit 1
+    fi
+  done
 
   if [ "$READY" -eq "$TOTAL" ] && [ "$TOTAL" -gt 0 ]; then
     echo "✅ All $TOTAL pods are running and ready."
